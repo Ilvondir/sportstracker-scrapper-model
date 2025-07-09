@@ -1,12 +1,9 @@
 from selenium.webdriver.common.by import By
-from dotenv import load_dotenv
-import os
 import time
 import undetected_chromedriver as uc
-load_dotenv()
-
-email = os.getenv('SPORTSTRACKER_EMAIL')
-password = os.getenv('SPORTSTRACKER_PASSWORD')
+from pathlib import Path
+import requests
+from tqdm import tqdm
 
 driver = uc.Chrome()
 driver.implicitly_wait(2)
@@ -14,14 +11,14 @@ driver.implicitly_wait(2)
 # Login
 driver.get("https://www.sports-tracker.com/login")
 
-print('You have 30 seconds to login now.')
-print(f'\t1. Enter your credentials: {email} {password}')
+print(f'\nYou have 30 seconds to login now.')
+print(f'\t1. Enter your credentials.')
 print(f'\t2. Click LOGIN.')
 print(f'\t3. Click ACCEPT ALL at cookiees baner.')
 print(f'\t4. Click LOGIN.')
 print(f'\t5. Wait for script.')
 
-time.sleep(15)
+time.sleep(20)
 
 if False:
     email_field = driver.find_element(by=By.CSS_SELECTOR, value='input[type="text"].username')
@@ -52,9 +49,31 @@ while True:
     elem.click()
     time.sleep(0.5)
 
+token = driver.execute_script('return window.localStorage.getItem("sessionkey");')
+all_elems = driver.find_elements(by=By.CSS_SELECTOR, value='a')
+
+identificators = []
+for elem in all_elems:
+    if elem != None:
+        href = elem.get_attribute('href')
+        if href != None:
+            if '/workout/' in href:
+                identificators.append(href[href.rfind('/')+1:])
+
 driver.close()
 
-all_elems = driver.find_elements(by=By.CSS_SELECTOR, value='.diary-list__workout a')
-identificators = [elem.get_attribute('href')[elem.get_attribute('href').rfind('/')+1:] for elem in all_elems]
-
 # Download all GPX files
+save_path = Path('datasets/GPXs')
+save_path.mkdir(parents=True, exist_ok=True)
+
+print(f'\nDownloading workouts')
+
+for id in tqdm(identificators):
+    url = f'https://api.sports-tracker.com/apiserver/v1/workout/exportGpx/{id}?token={token}'
+
+    response = requests.get(url)
+
+    with open(save_path / f'{id}.gpx', 'wb') as f:
+        f.write(response.content)
+
+print('Workouts scrapped')
