@@ -65,19 +65,30 @@ for elem in all_elems:
 
 # Collect data from workouts
 dataset = []
+columns = ['Duration', 'Distance', 'Energy', 'Avg. speed', 'Max speed', 'Steps']
 
 for url in urls:
     record = []
 
     driver.get(url)
-    time.sleep(.5)
+    time.sleep(.9)
 
     stats = driver.find_elements(by=By.CSS_SELECTOR, value='.workout-facts li')
 
     for stat in stats:
-        if 'Duration' in stat.text:
-            record.append(stat.find_element(by=By.TAG_NAME, value='em').text)
 
+        for column in columns:
+            if column in stat.text:
+                record.append(stat.find_element(by=By.TAG_NAME, value='em').text)
+            else:
+                record.append('')
+        
+        if 'Ascent / Descent' in stat.text:
+            record.extend(stat.find_element(by=By.TAG_NAME, value='em').text[:-1].split('/'))
+        else:
+            record.extend(['', ''])
+
+    print(url)
     label = driver.find_element(by=By.CSS_SELECTOR, value='.workout-facts .activity-name').text
     record.append(label)
 
@@ -88,7 +99,8 @@ driver.close()
 root = Path('datasets')
 root.mkdir(parents=True, exist_ok=True)
 
-data = pd.DataFrame(dataset, columns=['duration', 'label'])
+columns.extend(['Ascent', 'Descent', 'Label'])
+data = pd.DataFrame(dataset, columns=columns)
 data.to_csv(root / 'workouts.csv', index=False)
 
 
