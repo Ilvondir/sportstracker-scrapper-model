@@ -4,12 +4,13 @@ import undetected_chromedriver as uc
 from pathlib import Path
 import requests
 from tqdm import tqdm
+import pandas as pd
 
 driver = uc.Chrome()
 driver.implicitly_wait(2)
 
 # Login
-driver.get("https://www.sports-tracker.com/login")
+driver.get('https://www.sports-tracker.com/login')
 
 print(f'\nYou have 30 seconds to login now.')
 print(f'\t1. Enter your credentials.')
@@ -52,27 +53,55 @@ while True:
 token = driver.execute_script('return window.localStorage.getItem("sessionkey");')
 all_elems = driver.find_elements(by=By.CSS_SELECTOR, value='a')
 
-identificators = []
+urls = []
+
 for elem in all_elems:
     if elem != None:
         href = elem.get_attribute('href')
         if href != None:
             if '/workout/' in href:
-                identificators.append(href[href.rfind('/')+1:])
+                urls.append(href)
+
+
+# Collect data from workouts
+dataset = []
+
+for url in urls:
+    record = []
+
+    driver.get(url)
+    time.sleep(.5)
+
+    stats = driver.find_elements(by=By.CSS_SELECTOR, value='.workout-facts li')
+
+    for stat in stats:
+        if 'Duration' in stat.text:
+            record.append(stat.find_element(by=By.TAG_NAME, value='em').text)
+
+    label = driver.find_element(by=By.CSS_SELECTOR, value='.workout-facts .activity-name').text
+    record.append(label)
+
+    dataset.append(record)
 
 driver.close()
 
-# Download all GPX files
-save_path = Path('datasets/GPXs')
+root = Path('datasets')
+root.mkdir(parents=True, exist_ok=True)
+
+data = pd.DataFrame(dataset, columns=['duration', 'label'])
+data.to_csv(root / 'workouts.csv', index=False)
+
+
+# Download GPX files
+save_path = root / 'GPXs'
 save_path.mkdir(parents=True, exist_ok=True)
 
-print(f'\nDownloading workouts')
+print(f'\nScraping workouts')
 
-for id in tqdm(identificators):
+for link in tqdm(urls):
+    id = link[link.rfind('/')+1:]
     url = f'https://api.sports-tracker.com/apiserver/v1/workout/exportGpx/{id}?token={token}'
-
     response = requests.get(url)
-
     with open(save_path / f'{id}.gpx', 'wb') as f:
         f.write(response.content)
 
