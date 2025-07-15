@@ -65,44 +65,54 @@ for elem in all_elems:
 
 # Collect data from workouts
 dataset = []
-columns = ['Duration', 'Distance', 'Energy', 'Avg. speed', 'Max speed', 'Steps']
+columns = ['Duration', 'Distance', 'Energy', 'Avg. speed', 'Max. speed', 'Steps']
 
 for url in urls:
     record = []
 
     driver.get(url)
-    time.sleep(.9)
+    time.sleep(.5)
 
     stats = driver.find_elements(by=By.CSS_SELECTOR, value='.workout-facts li')
 
-    for stat in stats:
-
-        for column in columns:
+    for column in columns:
+        found = False
+        for stat in stats:
             if column in stat.text:
-                record.append(stat.find_element(by=By.TAG_NAME, value='em').text)
-            else:
-                record.append('')
-        
+                record.append(stat.find_element(by=By.TAG_NAME, value='em').text.strip())
+                found = True
+                break
+        if not found:
+            record.append('')
+
+    found = False
+    for stat in stats:
         if 'Ascent / Descent' in stat.text:
-            record.extend(stat.find_element(by=By.TAG_NAME, value='em').text[:-1].split('/'))
-        else:
-            record.extend(['', ''])
+            record.extend(map(str.strip, stat.find_element(by=By.TAG_NAME, value='em').text[:-1].split('/')))
+            found = True
+            break
+    if not found:
+        record.extend(['', ''])
 
-    print(url)
     label = driver.find_element(by=By.CSS_SELECTOR, value='.workout-facts .activity-name').text
-    record.append(label)
 
-    dataset.append(record)
+    if any(elem != '' for elem in record):
+        record.append(label)
+        record.insert(0, url[url.rfind('/')+1:])
+        dataset.append(record)
 
 driver.close()
 
 root = Path('datasets')
 root.mkdir(parents=True, exist_ok=True)
 
+columns.insert(0, 'ID')
 columns.extend(['Ascent', 'Descent', 'Label'])
+
 data = pd.DataFrame(dataset, columns=columns)
 data.to_csv(root / 'workouts.csv', index=False)
 
+print('Plain data scrapped')
 
 # Download GPX files
 save_path = root / 'GPXs'
